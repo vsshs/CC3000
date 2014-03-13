@@ -26,16 +26,14 @@ SPI_CLOCK_DIV2); // you can change this clock speed
 // you're accessing is quick to respond, you can reduce this value.
 uint32_t ip;
 
-#define USE_SERIAL 0 // disables all serial output besides response data
+#define USE_SERIAL 1 // disables all serial output besides response data
 unsigned long tries = 0;
 unsigned long successes = 0;
 void setup(void)
 {
   // Initialize
-  //Serial.begin(115200);
+  Serial.begin(115200);
 
-  pinMode(13, OUTPUT);
-  digitalWrite(13, LOW);
   if(USE_SERIAL) Serial.println(F("\nInitializing..."));
    if(USE_SERIAL == 0) cc3000.setPrinter(0);
   if (!cc3000.begin())
@@ -55,7 +53,6 @@ void setup(void)
 char fail_count;
 void loop(void)
 {
-  digitalWrite(13, LOW);
   tries++;
   // Connect to WiFi network
   cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
@@ -139,10 +136,7 @@ void loop(void)
         }
 
         if (jsonStarted)
-          {
-           // Serial.print(c);
-           digitalWrite(13, HIGH);
-          }
+          Serial.print(c);
       }
     }
     client.close();
