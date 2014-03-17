@@ -46,8 +46,8 @@ void setup(void)
 
 }
 //http://events2.vsshs.com/api/Test/TestMethod
-#define WEBSITE      "events2.vsshs.com"
-#define WEBPAGE "/api/Test/TestMethod"
+#define WEBSITE      "tests.vsshs.com"
+#define WEBPAGE "/smartportal/api/Patient/checkpatient"
 
 // RFID
 byte bytesRead = 0;
@@ -182,7 +182,7 @@ void doWifiStuff()
     while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS)) {
       while (client.available()) {
         char c = client.read();
-        //if(USE_SERIAL) Serial.print(c);
+        if(USE_SERIAL) Serial.print(c);
         // skip all of the header crap...
         if (c=='{' && !jsonStarted)
         {
@@ -191,7 +191,9 @@ void doWifiStuff()
         }
 
         if (jsonStarted)
-          Serial.print(c);
+          {
+            //Serial.print(c);
+          }
       }
     }
     client.close();

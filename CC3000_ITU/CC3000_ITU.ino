@@ -7,9 +7,9 @@
 #include<stdlib.h>
 
 // Define CC3000 chip pins
-#define ADAFRUIT_CC3000_IRQ   3
-#define ADAFRUIT_CC3000_VBAT  5
-#define ADAFRUIT_CC3000_CS    10
+#define ADAFRUIT_CC3000_IRQ   2
+#define ADAFRUIT_CC3000_VBAT  7
+#define ADAFRUIT_CC3000_CS    4
 
 // Create CC3000 instances
 Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ, ADAFRUIT_CC3000_VBAT,
@@ -29,6 +29,16 @@ uint32_t ip;
 #define USE_SERIAL 1 // disables all serial output besides response data
 unsigned long tries = 0;
 unsigned long successes = 0;
+
+
+#define PINR 3
+#define PING 5
+#define PINB 6
+#define PINBUZZER 8
+
+
+
+
 void setup(void)
 {
   // Initialize
@@ -41,13 +51,20 @@ void setup(void)
     if(USE_SERIAL) Serial.println(F("Couldn't begin()! Check your wiring?"));
     while(1);
   }
-
+  
+  pinMode(PINR, OUTPUT);
+  pinMode(PING, OUTPUT);
+  pinMode(PINB, OUTPUT);
+  
+  pinMode(PINBUZZER, OUTPUT);  
+  
+  digitalWrite(PINBUZZER, LOW);
 
 
 }
 //http://events2.vsshs.com/api/Test/TestMethod
-#define WEBSITE      "events2.vsshs.com"
-#define WEBPAGE "/api/Test/TestMethod"
+#define WEBSITE      "tests.vsshs.com"
+#define WEBPAGE "/smartportal/api/Patient/checkpatient"
 
 // RFID
 byte bytesRead = 0;
@@ -59,9 +76,12 @@ byte checksum = 0;
 int i;
 
 
+
+
 char fail_count;
 
 
+unsigned long buzzerOn = 0;
 
 void loop(void)
 {
@@ -182,7 +202,7 @@ void doWifiStuff()
     while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS)) {
       while (client.available()) {
         char c = client.read();
-        //if(USE_SERIAL) Serial.print(c);
+        if(USE_SERIAL) Serial.print(c);
         // skip all of the header crap...
         if (c=='{' && !jsonStarted)
         {
@@ -191,7 +211,9 @@ void doWifiStuff()
         }
 
         if (jsonStarted)
-          Serial.print(c);
+          {
+            //Serial.print(c);
+          }
       }
     }
     client.close();
