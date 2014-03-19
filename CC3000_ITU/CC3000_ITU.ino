@@ -13,7 +13,7 @@
 
 // Create CC3000 instances
 Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ, ADAFRUIT_CC3000_VBAT,
-SPI_CLOCK_DIV2); // you can change this clock speed
+										 SPI_CLOCK_DIV2); // you can change this clock speed
 
 // WLAN parameters
 #define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
@@ -24,9 +24,11 @@ SPI_CLOCK_DIV2); // you can change this clock speed
 #define IDLE_TIMEOUT_MS  3000      // Amount of time to wait (in milliseconds) with no data 
 // received before closing the connection.  If you know the server
 // you're accessing is quick to respond, you can reduce this value.
+
 uint32_t ip;
 
 #define USE_SERIAL 1 // disables all serial output besides response data
+
 unsigned long tries = 0;
 unsigned long successes = 0;
 
@@ -37,28 +39,34 @@ unsigned long successes = 0;
 #define PINBUZZER 8
 
 
-
+#define USINGMEGA 1
 
 void setup(void)
 {
-  // Initialize
-  Serial.begin(115200);
+	// Initialize
+	Serial.begin(115200);
 
-  if(USE_SERIAL) Serial.println(F("\nInitializing..."));
-  if(USE_SERIAL == 0) cc3000.setPrinter(0);
-  if (!cc3000.begin())
-  {
-    if(USE_SERIAL) Serial.println(F("Couldn't begin()! Check your wiring?"));
-    while(1);
-  }
-  
-  pinMode(PINR, OUTPUT);
-  pinMode(PING, OUTPUT);
-  pinMode(PINB, OUTPUT);
-  
-  pinMode(PINBUZZER, OUTPUT);  
-  
-  digitalWrite(PINBUZZER, LOW);
+	if (USINGMEGA)
+	{
+		Serial1.begin(9600);
+
+	}
+
+	if(USE_SERIAL) Serial.println(F("\nInitializing..."));
+	if(USE_SERIAL == 0) cc3000.setPrinter(0);
+	if (!cc3000.begin())
+	{
+		if(USE_SERIAL) Serial.println(F("Couldn't begin()! Check your wiring?"));
+		while(1);
+	}
+
+	pinMode(PINR, OUTPUT);
+	pinMode(PING, OUTPUT);
+	pinMode(PINB, OUTPUT);
+
+	pinMode(PINBUZZER, OUTPUT);  
+
+	digitalWrite(PINBUZZER, LOW);
 
 
 }
@@ -66,240 +74,352 @@ void setup(void)
 #define WEBSITE      "tests.vsshs.com"
 #define WEBPAGE "/smartportal/api/Patient/checkpatient"
 
-// RFID
-byte bytesRead = 0;
-byte tempByte = 0;
-byte tagBytes[6]; // "Unique" tags are only 5 bytes but we need an extra byte for the checksum
-byte val = 0;
-char tagValue[10];
-byte checksum = 0;
-int i;
-
-
-
-
 char fail_count;
 
 
 unsigned long buzzerOn = 0;
 
+int counter;
+byte data[14];
+byte hexBlock1,hexBlock2,hexBlock3,hexBlock4,hexBlock5;
+byte hexCalculatedChecksum,hexChecksum;
+char myTag[9];
+unsigned long last_tag_detected = 999999;
 void loop(void)
 {
+	Serial.println("LOOP...");
 
-  readRFID();
+	doRFIDstuff();
 
-  // Send the result to the host connected via USB
-  if (bytesRead == 12) { // 12 digit read is complete
-    tagValue[10] = '\0'; // Null-terminate the string
+	if (millis() - last_tag_detected < 15000)
+	{
 
-    Serial.print("Tag read: ");
-    for (i=0; i<5; i++) 
-    {
-      // Add a leading 0 to pad out values below 16
-      if (tagBytes[i] < 16) 
-      {
-        Serial.print("0");
-      }
-      Serial.print(tagBytes[i], HEX);
-    }
-    Serial.println();
+	}
+	//Serial1.flush();
+	doWifiStuff();
 
-    Serial.print("Checksum: ");
-    Serial.print(tagBytes[5], HEX);
-    Serial.println(tagBytes[5] == checksum ? " -- passed." : " -- error.");
+	checkBuzzerStatus();
+	//readRFID2();
 
-    // Show the raw tag value
-    Serial.print("VALUE: ");
-    Serial.println(tagValue);
+	//delay(4000);
+	//Serial.flush();
 
-   
-  }
+	/*
+	// Send the result to the host connected via USB
+	if (bytesRead == 12) { // 12 digit read is complete
+	tagValue[10] = '\0'; // Null-terminate the string
 
-  doWifiStuff();
+	Serial.print("Tag read: ");
+	for (i=0; i<5; i++) 
+	{
+	// Add a leading 0 to pad out values below 16
+	if (tagBytes[i] < 16) 
+	{
+	Serial.print("0");
+	}
+	Serial.print(tagBytes[i], HEX);
+	}
+	Serial.println();
 
-  
+	Serial.print("Checksum: ");
+	Serial.print(tagBytes[5], HEX);
+	Serial.println(tagBytes[5] == checksum ? " -- passed." : " -- error.");
 
-  // Wait 10 seconds until next update
-  delay(3000);
+	// Show the raw tag value
+	Serial.print("VALUE: ");
+	Serial.println(tagValue);
+
+
+	}
+	*/
+	//doWifiStuff();
+
+
+
+	// Wait 10 seconds until next update
+	//delay(3000);
 
 }
 
+unsigned long dhcpTimeout = 5000;
+unsigned long t;
+
+bool turn_buzzer_on = false;
+unsigned long turn_buzzer_on_timestamp = 0;
 
 void doWifiStuff()
 {
-  
-  tries++;
-  // Connect to WiFi network
-  cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
-  if(USE_SERIAL) Serial.println(F("Connected!"));
+	// Connect to WiFi network
+	if (!cc3000.checkConnected())
+	{
+		cc3000.disconnect();
+		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
+	}
+	Serial.println(F("Connected!"));
 
 
-  /* Wait for DHCP to complete */
-  if(USE_SERIAL) Serial.println(F("Request DHCP"));
-  fail_count=0;
-  while (!cc3000.checkDHCP())
-  {
-    delay(1000);
-    if(USE_SERIAL) Serial.println(F("DHCP fail"));
-  }  
+	/* Wait for DHCP to complete */
+	Serial.println(F("Request DHCP"));
+	fail_count=0;
 
-  // Get the website IP & print it
-  ip = 0;
-  fail_count = 0;
-  if(USE_SERIAL) Serial.print(WEBSITE); 
-  if(USE_SERIAL) Serial.print(F(" -> "));
 
-  /*
-  while (ip == 0 && fail_count < 5) 
-   {
-   fail_count++;
-   if (! cc3000.getHostByName(WEBSITE, &ip)) 
-   {
-   
-   if(USE_SERIAL) Serial.print(fail_count);
-   if(USE_SERIAL) Serial.println(F("Couldn't resolve!"));
-   
-   
-   }
-   else
-   {
-   if(USE_SERIAL) Serial.print(F("\n\nhost resolved"));
-   if(USE_SERIAL) Serial.println(ip);
-   }
-   delay(500);
-   }
-   */
-  ip = cc3000.IP2U32(91,100,105,227);
 
-  if (ip != 0)
-  {
-    cc3000.printIPdotsRev(ip);
+	for(t=millis(); !cc3000.checkDHCP() && ((millis() - t) < dhcpTimeout); delay(1000));
+	if(cc3000.checkDHCP()) 
+	{
+		Serial.println(F("OK"));
+	} 
+	else 
+	{
+		Serial.println(F("failed"));
+		cc3000.disconnect();
+		return;
+	}
 
-    // Send request
-    Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
-    if (client.connected()) {
-      if(USE_SERIAL) Serial.println("Connected!");
-      client.fastrprint(F("GET "));
-      client.fastrprint(WEBPAGE);
-      client.fastrprint(F(" HTTP/1.1\r\n"));
-      client.fastrprint(F("Host: ")); 
-      client.fastrprint(WEBSITE); 
-      client.fastrprint(F("\r\nAccept: application/json"));
-      client.fastrprint(F("\r\n"));
-      client.fastrprint(F("\r\n"));
-      client.println();
-    } 
-    else 
-    {
-      if(USE_SERIAL) Serial.println(F("Connection failed"));    
-      return;
-    }
+	// Get the website IP & print it
+	ip = 0;
+	fail_count = 0;
+	if(USE_SERIAL) Serial.print(WEBSITE); 
+	if(USE_SERIAL) Serial.print(F(" -> "));
 
-    if(USE_SERIAL) Serial.println(F("-------------------------------------"));
-    /* Read data until either the connection is closed, or the idle timeout is reached. */
-    unsigned long lastRead = millis();
-    boolean jsonStarted=false;
-    while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS)) {
-      while (client.available()) {
-        char c = client.read();
-        if(USE_SERIAL) Serial.print(c);
-        // skip all of the header crap...
-        if (c=='{' && !jsonStarted)
-        {
-          jsonStarted = true;
-          successes++;
-        }
+	/*
+	while (ip == 0 && fail_count < 5) 
+	{
+	fail_count++;
+	if (! cc3000.getHostByName(WEBSITE, &ip)) 
+	{
 
-        if (jsonStarted)
-          {
-            //Serial.print(c);
-          }
-      }
-    }
-    client.close();
-    if(USE_SERIAL) Serial.println(F("\n-------------------------------------"));
+	if(USE_SERIAL) Serial.print(fail_count);
+	if(USE_SERIAL) Serial.println(F("Couldn't resolve!"));
 
-  }
-  else
-  {
-    if(USE_SERIAL) Serial.println(F("\n\nERROR: Could not resolve IP. "));
-  }
 
-  if(USE_SERIAL) Serial.print("Free RAM: "); 
-  //if(USE_SERIAL) Serial.println(getFreeRam(), DEC);
-  if(USE_SERIAL) Serial.println(F("\n\nDisconnecting"));
+	}
+	else
+	{
+	if(USE_SERIAL) Serial.print(F("\n\nhost resolved"));
+	if(USE_SERIAL) Serial.println(ip);
+	}
+	delay(500);
+	}
+	*/
+	ip = cc3000.IP2U32(91,100,105,227);
 
-  fail_count = 0;
-  while(!cc3000.disconnect() )
-  {
-    if(USE_SERIAL) Serial.println(F("\nFAILED to disconnect"));
-    delay(1000);
-    fail_count++;
-    if (fail_count == 5)
-    {
-      cc3000.reboot(); 
-      delay(5000);
-      break;
-    } 
-  }
+	if (ip != 0)
+	{
+		cc3000.printIPdotsRev(ip);
 
-  if(USE_SERIAL) Serial.print("Tries: ");
-  if(USE_SERIAL) Serial.println (tries);
+		// Send request
+		Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
+		if (client.connected()) {
+			if(USE_SERIAL) Serial.println("Connected!");
+			client.fastrprint(F("GET "));
+			client.fastrprint(WEBPAGE);
+			client.fastrprint(F("?tagId="));
+			char* tag = getTagNumber();
+			client.fastrprint(tag);
+			//client.fastrprint(F("&lastUpdated="));
+			client.fastrprint(F(" HTTP/1.1\r\n"));
+			client.fastrprint(F("Host: ")); 
+			client.fastrprint(WEBSITE); 
+			client.fastrprint(F("\r\nAccept: application/json"));
+			client.fastrprint(F("\r\n"));
+			client.fastrprint(F("\r\n"));
+			client.println();
+		} 
+		else 
+		{
+			if(USE_SERIAL) Serial.println(F("Connection failed"));    
+			return;
+		}
 
-  if(USE_SERIAL) Serial.print("Successes: ");
-  if(USE_SERIAL) Serial.println (successes);
+		if(USE_SERIAL) Serial.println(F("-------------------------------------"));
+		/* Read data until either the connection is closed, or the idle timeout is reached. */
+		unsigned long lastRead = millis();
+		boolean jsonStarted=false;
+		int rgb[] = {0, 0, 0};
+		while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS)) {
+			int currentValue = 0;
+			int currentPosition = 0;
+
+
+			while (client.available()) {
+				char c = client.read();
+				//if(USE_SERIAL) Serial.print(c);
+
+				if (jsonStarted)
+				{
+					if (c == '"')
+						break;
+					Serial.println(c);
+					if (c != '/')
+					{
+						currentValue = currentValue * 10 + c - '0';
+					}
+					else
+					{
+						Serial.print ("Current value: ");
+						Serial.println(currentValue);
+						// LED status
+						if (currentPosition < 3)
+							rgb[currentPosition]  = currentValue;
+
+						// buzzer
+						if (currentPosition == 3)
+						{
+							Serial.print ("buzzer: ");
+							Serial.println(currentValue);
+							if (currentValue > 0)
+							{
+								turn_buzzer_on = true;
+							}
+						}
+
+						currentPosition ++;
+						currentValue = 0;
+					}
+				}
+
+				// skip all of the header crap...
+				if (c=='"' && !jsonStarted)
+				{
+					jsonStarted = true;
+					successes++;
+				}
+
+
+			}
+
+
+		}
+		client.close();
+
+		analogWrite(PINR, rgb[0]);
+		analogWrite(PING, rgb[1]);
+		analogWrite(PINB, rgb[2]);
+
+		Serial.println(rgb[0]);
+		Serial.println(rgb[1]);
+		Serial.println(rgb[2]);
+		if(USE_SERIAL) Serial.println(F("\n-------------------------------------"));
+
+	}
+	else
+	{
+		if(USE_SERIAL) Serial.println(F("\n\nERROR: Could not resolve IP. "));
+	}
+
+	if(USE_SERIAL) Serial.print("Free RAM: "); 
+	//if(USE_SERIAL) Serial.println(getFreeRam(), DEC);
+	if(USE_SERIAL) Serial.println(F("\n\nDisconnecting"));
+
+	fail_count = 0;
+
+
+	if(USE_SERIAL) Serial.print("Tries: ");
+	if(USE_SERIAL) Serial.println (tries);
+
+	if(USE_SERIAL) Serial.print("Successes: ");
+	if(USE_SERIAL) Serial.println (successes);
 }
 
 
-void readRFID(){
-  bytesRead = 0;
-  // do rfid stuff
+void checkBuzzerStatus()
+{
+	if (turn_buzzer_on)
+	{
+		turn_buzzer_on = false;
+		turn_buzzer_on_timestamp = millis();
+		Serial.println("Setting buzzer timestamp");
+	}
 
-  while (Serial.available()){
-    val = Serial.read();
+	if (turn_buzzer_on_timestamp > 0 && millis() - turn_buzzer_on_timestamp  < 15000)
+	{
+		digitalWrite(PINBUZZER, HIGH);
+	}
+	else
+	{
+		turn_buzzer_on_timestamp = 0;
+		digitalWrite(PINBUZZER, LOW);
+	}
+}
+void doRFIDstuff()
+{
+	if (Serial1.available() > 0)
+	{
+		Serial.print("Available: ");
+		Serial.println(Serial1.available());
+		while(Serial1.available() && Serial1.read() != 0x02)
+		{
+			Serial1.read();
+		}
+
+		if (Serial1.available() >= 13)
+		{
+			data[0] = 0x02;
+			counter = 1;
+			for (int i = 0; i < 14; i++)
+			{
+				data[counter] = Serial1.read();
+				counter++;
+			}
+			if(data[0] == 0x02 && data[13] == 0x03)
+			{
+				Serial.println("---- Start of text and end of text correctly received.");
+
+				hexBlock1 = AsciiCharToNum(data[1])*16 + AsciiCharToNum(data[2]);
+				hexBlock2 = AsciiCharToNum(data[3])*16 + AsciiCharToNum(data[4]);
+				hexBlock3 = AsciiCharToNum(data[5])*16 + AsciiCharToNum(data[6]);
+				hexBlock4 = AsciiCharToNum(data[7])*16 + AsciiCharToNum(data[8]);
+				hexBlock5 = AsciiCharToNum(data[9])*16 + AsciiCharToNum(data[10]);
+
+				hexChecksum = AsciiCharToNum(data[11])*16 + AsciiCharToNum(data[12]);
+
+				//XOR algorithm to calculate checksum of ID blocks.
+				hexCalculatedChecksum = hexBlock1 ^ hexBlock2 ^ hexBlock3 ^ hexBlock4 ^ hexBlock5;
+				if ( hexCalculatedChecksum == hexChecksum )
+				{
+					for (int i = 0; i < 8; i++)
+					{
+						char a = (char)data[i+3];
+						myTag[i] = a;
+						//Serial.print(a);
+					}
+					myTag[8]= 0x00;
+					last_tag_detected = millis();
+				} 
 
 
-    Serial.println(bytesRead);
+				Serial.println(myTag);
+				// empty the rest of the buffer
+				while(Serial1.available()) { Serial1.read(); }
+			}
+		}
+		else
+		{
+			// empty the rest of the buffer
+			while(Serial1.available()) { Serial1.read(); }
+		}
 
-    // Append the first 10 bytes (0 to 9) to the raw tag value
-    if (bytesRead < 10)
-    {
-      tagValue[bytesRead] = val;
-    }
-
-    // Check if this is a header or stop byte before the 10 digit reading is complete
-    if((val == 0x0D)||(val == 0x0A)||(val == 0x03)||(val == 0x02)) {
-      break; // Stop reading
-    }
-
-    // Ascii/Hex conversion:
-    if ((val >= '0') && (val <= '9')) {
-      val = val - '0';
-    }
-    else if ((val >= 'A') && (val <= 'F')) {
-      val = 10 + val - 'A';
-    }
-
-    // Every two hex-digits, add a byte to the code:
-    if (bytesRead & 1 == 1) {
-      // Make space for this hex-digit by shifting the previous digit 4 bits to the left
-      tagBytes[bytesRead >> 1] = (val | (tempByte << 4));
-
-      if (bytesRead >> 1 != 5) { // If we're at the checksum byte,
-        checksum ^= tagBytes[bytesRead >> 1]; // Calculate the checksum... (XOR)
-      };
-    } 
-    else {
-      tempByte = val; // Store the first hex digit first
-    };
-
-    bytesRead ++;
-  }
-
+	}
 }
 
 
+char* getTagNumber()
+{
+	if (millis() - last_tag_detected < 15000)
+		return myTag;
+	else
+		return "0";
+}
 
 
-
-
+uint8_t AsciiCharToNum(byte data) {
+	//First substract 48 to convert the char representation
+	//of a number to an actual number.
+	data -= '0';
+	//If it is greater than 9, we have a Hex character A-F.
+	//Substract 7 to get the numeral representation.
+	if (data > 9) 
+		data -= 7;
+	return data;
+} 
