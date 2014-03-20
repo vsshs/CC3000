@@ -6,6 +6,10 @@
 #include "utility/debug.h"
 #include<stdlib.h>
 
+#include <Adafruit_NeoPixel.h>
+
+#define PIN 6
+
 // Define CC3000 chip pins
 #define ADAFRUIT_CC3000_IRQ   2
 #define ADAFRUIT_CC3000_VBAT  7
@@ -18,8 +22,12 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 // WLAN parameters
 #define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
 #define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
+
+//#define WLAN_SSID       "pitlab-local"
+//#define WLAN_PASS       "none123456s";
+
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
-#define WLAN_SECURITY   WLAN_SEC_WPA2            
+#define WLAN_SECURITY   WLAN_SEC_UNSEC;            
 
 #define IDLE_TIMEOUT_MS  3000      // Amount of time to wait (in milliseconds) with no data 
 // received before closing the connection.  If you know the server
@@ -39,27 +47,12 @@ unsigned long successes = 0;
 #define PINBUZZER 8
 
 
-#define USINGMEGA 1
+
+
+bool usingMega = 1;
 
 void setup(void)
 {
-	// Initialize
-	Serial.begin(115200);
-
-	if (USINGMEGA)
-	{
-		Serial1.begin(9600);
-
-	}
-
-	if(USE_SERIAL) Serial.println(F("\nInitializing..."));
-	if(USE_SERIAL == 0) cc3000.setPrinter(0);
-	if (!cc3000.begin())
-	{
-		if(USE_SERIAL) Serial.println(F("Couldn't begin()! Check your wiring?"));
-		while(1);
-	}
-
 	pinMode(PINR, OUTPUT);
 	pinMode(PING, OUTPUT);
 	pinMode(PINB, OUTPUT);
@@ -67,6 +60,29 @@ void setup(void)
 	pinMode(PINBUZZER, OUTPUT);  
 
 	digitalWrite(PINBUZZER, LOW);
+
+	// Initialize
+	//Serial.begin(115200);
+
+	if (usingMega)
+	{
+		Serial1.begin(9600);
+		Serial.begin(115200);
+	}
+	else
+	{
+		Serial.begin(9600);
+	}
+	if (usingMega) Serial.println(F("\nInitializing..."));
+	if(!usingMega) cc3000.setPrinter(0); // if no mega - no printing from wifi module...
+
+	if (!cc3000.begin())
+	{
+		if(usingMega) Serial.println(F("Couldn't begin()! Check your wiring?"));
+		while(1);
+	}
+
+	ip = cc3000.IP2U32(91,100,105,227);
 
 
 }
@@ -85,60 +101,16 @@ byte hexBlock1,hexBlock2,hexBlock3,hexBlock4,hexBlock5;
 byte hexCalculatedChecksum,hexChecksum;
 char myTag[9];
 unsigned long last_tag_detected = 999999;
+
 void loop(void)
 {
-	Serial.println("LOOP...");
+	if(usingMega) Serial.println("LOOP...");
 
 	doRFIDstuff();
 
-	if (millis() - last_tag_detected < 15000)
-	{
-
-	}
-	//Serial1.flush();
-	doWifiStuff();
-
-	checkBuzzerStatus();
-	//readRFID2();
-
-	//delay(4000);
-	//Serial.flush();
-
-	/*
-	// Send the result to the host connected via USB
-	if (bytesRead == 12) { // 12 digit read is complete
-	tagValue[10] = '\0'; // Null-terminate the string
-
-	Serial.print("Tag read: ");
-	for (i=0; i<5; i++) 
-	{
-	// Add a leading 0 to pad out values below 16
-	if (tagBytes[i] < 16) 
-	{
-	Serial.print("0");
-	}
-	Serial.print(tagBytes[i], HEX);
-	}
-	Serial.println();
-
-	Serial.print("Checksum: ");
-	Serial.print(tagBytes[5], HEX);
-	Serial.println(tagBytes[5] == checksum ? " -- passed." : " -- error.");
-
-	// Show the raw tag value
-	Serial.print("VALUE: ");
-	Serial.println(tagValue);
-
-
-	}
-	*/
 	//doWifiStuff();
 
-
-
-	// Wait 10 seconds until next update
-	//delay(3000);
-
+	checkBuzzerStatus();
 }
 
 unsigned long dhcpTimeout = 5000;
@@ -153,13 +125,13 @@ void doWifiStuff()
 	if (!cc3000.checkConnected())
 	{
 		cc3000.disconnect();
-		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
+		cc3000.connectToAP(WLAN_SSID, NULL, WLAN_SEC_UNSEC);
 	}
-	Serial.println(F("Connected!"));
+	if(usingMega) Serial.println(F("Connected!"));
 
 
 	/* Wait for DHCP to complete */
-	Serial.println(F("Request DHCP"));
+	if(usingMega) Serial.println(F("Request DHCP"));
 	fail_count=0;
 
 
@@ -167,42 +139,14 @@ void doWifiStuff()
 	for(t=millis(); !cc3000.checkDHCP() && ((millis() - t) < dhcpTimeout); delay(1000));
 	if(cc3000.checkDHCP()) 
 	{
-		Serial.println(F("OK"));
+		if(usingMega) Serial.println(F("OK"));
 	} 
 	else 
 	{
-		Serial.println(F("failed"));
+		if(usingMega) Serial.println(F("failed"));
 		cc3000.disconnect();
 		return;
 	}
-
-	// Get the website IP & print it
-	ip = 0;
-	fail_count = 0;
-	if(USE_SERIAL) Serial.print(WEBSITE); 
-	if(USE_SERIAL) Serial.print(F(" -> "));
-
-	/*
-	while (ip == 0 && fail_count < 5) 
-	{
-	fail_count++;
-	if (! cc3000.getHostByName(WEBSITE, &ip)) 
-	{
-
-	if(USE_SERIAL) Serial.print(fail_count);
-	if(USE_SERIAL) Serial.println(F("Couldn't resolve!"));
-
-
-	}
-	else
-	{
-	if(USE_SERIAL) Serial.print(F("\n\nhost resolved"));
-	if(USE_SERIAL) Serial.println(ip);
-	}
-	delay(500);
-	}
-	*/
-	ip = cc3000.IP2U32(91,100,105,227);
 
 	if (ip != 0)
 	{
