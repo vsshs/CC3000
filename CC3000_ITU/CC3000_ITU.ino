@@ -6,10 +6,6 @@
 #include "utility/debug.h"
 #include<stdlib.h>
 
-#include <Adafruit_NeoPixel.h>
-
-#define PIN 6
-
 // Define CC3000 chip pins
 #define ADAFRUIT_CC3000_IRQ   2
 #define ADAFRUIT_CC3000_VBAT  7
@@ -20,11 +16,11 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 										 SPI_CLOCK_DIV2); // you can change this clock speed
 
 // WLAN parameters
-#define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
-#define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
+//#define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
+//#define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
 
-//#define WLAN_SSID       "pitlab-local"
-//#define WLAN_PASS       "none123456s";
+#define WLAN_SSID       "pitlab-local"
+#define WLAN_PASS       "none123456s";
 
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY   WLAN_SEC_UNSEC;            
@@ -108,7 +104,7 @@ void loop(void)
 
 	doRFIDstuff();
 
-	//doWifiStuff();
+	doWifiStuff();
 
 	checkBuzzerStatus();
 }
