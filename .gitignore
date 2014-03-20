@@ -5,3 +5,5 @@
 *.vcxproj
 *.suo
 *.sdf
+CC3000_ITU/Visual Micro/*
+CC3000_ITU/CC3000_ITU*

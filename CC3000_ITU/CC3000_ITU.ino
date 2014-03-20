@@ -5,6 +5,7 @@
 #include <string.h>
 #include "utility/debug.h"
 #include<stdlib.h>
+#include <Adafruit_NeoPixel.h>
 
 // Define CC3000 chip pins
 #define ADAFRUIT_CC3000_IRQ   2
@@ -20,10 +21,15 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 //#define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
 
 #define WLAN_SSID       "pitlab-local"
-#define WLAN_PASS       "none123456s";
+#define WLAN_PASS       "none123456s"
+
+
+#define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
+#define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
 
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
-#define WLAN_SECURITY   WLAN_SEC_UNSEC;            
+#define WLAN_SECURITY   WLAN_SEC_WPA2
+
 
 #define IDLE_TIMEOUT_MS  3000      // Amount of time to wait (in milliseconds) with no data 
 // received before closing the connection.  If you know the server
@@ -37,19 +43,23 @@ unsigned long tries = 0;
 unsigned long successes = 0;
 
 
-#define PINR 3
+///#define PINR 3
 #define PING 5
 #define PINB 6
 #define PINBUZZER 8
 
 
 
+#define PIN 3
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(4, PIN, NEO_GRB + NEO_KHZ800);
 
 bool usingMega = 1;
 
 void setup(void)
 {
-	pinMode(PINR, OUTPUT);
+	strip.begin();
+	 strip.show(); // Initialize all pixels to 'off'
+	//pinMode(PINR, OUTPUT);
 	pinMode(PING, OUTPUT);
 	pinMode(PINB, OUTPUT);
 
@@ -79,8 +89,13 @@ void setup(void)
 	}
 
 	ip = cc3000.IP2U32(91,100,105,227);
-
-
+	for (int i = 0; i < 3; i++)
+	{
+	colorWipe(strip.Color(255, 0, 0), 50); // Red
+	colorWipe(strip.Color(0, 255, 0), 50); // Green
+	colorWipe(strip.Color(0, 0, 255), 50); // Blue
+	}
+	strip.show(); // Initialize all pixels to 'off'
 }
 //http://events2.vsshs.com/api/Test/TestMethod
 #define WEBSITE      "tests.vsshs.com"
@@ -115,13 +130,23 @@ unsigned long t;
 bool turn_buzzer_on = false;
 unsigned long turn_buzzer_on_timestamp = 0;
 
+// Fill the dots one after the other with a color
+void colorWipe(uint32_t c, uint8_t wait) {
+	for(uint16_t i=0; i<strip.numPixels(); i++) {
+		strip.setPixelColor(i, c);
+		strip.show();
+		if (wait > 0)
+			delay(wait);
+	}
+}
+
 void doWifiStuff()
 {
 	// Connect to WiFi network
 	if (!cc3000.checkConnected())
 	{
 		cc3000.disconnect();
-		cc3000.connectToAP(WLAN_SSID, NULL, WLAN_SEC_UNSEC);
+		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
 	if(usingMega) Serial.println(F("Connected!"));
 
@@ -233,10 +258,10 @@ void doWifiStuff()
 		}
 		client.close();
 
-		analogWrite(PINR, rgb[0]);
-		analogWrite(PING, rgb[1]);
-		analogWrite(PINB, rgb[2]);
-
+		//analogWrite(PINR, rgb[0]);
+		//analogWrite(PING, rgb[1]);
+		//analogWrite(PINB, rgb[2]);
+		colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
 		Serial.println(rgb[0]);
 		Serial.println(rgb[1]);
 		Serial.println(rgb[2]);
