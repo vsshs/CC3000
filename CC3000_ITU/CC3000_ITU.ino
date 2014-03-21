@@ -29,7 +29,8 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 #define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
 #define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
 
-
+#define WLAN_SSID       "smartportal"
+#define WLAN_PASS       "smartportal"
 
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY   WLAN_SEC_WPA2
@@ -88,7 +89,8 @@ void setup(void)
 		while(1);
 	}
 
-	ip = cc3000.IP2U32(91,100,105,227);
+	ip = cc3000.IP2U32(192,168,0,67);
+
 	for (int i = 0; i < 3; i++)
 	{
 		colorWipe(strip.Color(255, 0, 0), 50); // Red
@@ -96,12 +98,12 @@ void setup(void)
 		colorWipe(strip.Color(0, 0, 255), 50); // Blue
 	}
 
-	colorWipe(strip.Color(0, 0, 0), 0); // off
+	colorWipe(strip.Color(255, 255, 255), 0); // off
 	//strip.show(); // Initialize all pixels to 'off'
 }
 //http://events2.vsshs.com/api/Test/TestMethod
-#define WEBSITE      "tests.vsshs.com"
-#define WEBPAGE "/smartportal/api/Patient/checkpatient"
+#define WEBSITE      "192.168.0.67"
+#define WEBPAGE "/api/Patient/checkpatient"
 
 char fail_count;
 
