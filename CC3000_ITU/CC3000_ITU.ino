@@ -54,14 +54,14 @@ unsigned long successes = 0;
 
 
 ///#define PINR 3
-#define PING 5
+//#define PING 5
 //#define PINB 6
 #define PINBUZZER 10
 #define PIN_NEOPIXEL 8
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(3, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 volatile int rgb[] = {0, 0, 0};
 volatile int rgb_old[] = {0, 0, 0};
-bool usingMega = 1;
+bool usingMega = 0;
 unsigned long dhcpTimeout = 5000;
 unsigned long t;
 
@@ -75,7 +75,7 @@ volatile bool turn_blinking_on_last = false;
 
 void setup(void)
 {
-	pinMode(13, OUTPUT);
+	//pinMode(13, OUTPUT);
 
 	
 	// initialize timer1 
@@ -230,20 +230,21 @@ char c;
 
 void doWifiStuff()
 {
-	Serial.println("1 doWifiStuff()");
+	Serial.println(F("1 doWifiStuff()"));
 	lastRequest_now = millis();
 
 	if (lastRequest_now - lastRequest < 666) 
 	{ return; }
-	digitalWrite(13, HIGH);
+	//digitalWrite(13, HIGH);
 	lastRequest = lastRequest_now;
 	// Connect to WiFi network
-	Serial.println("2. doWifiStuff()");
+	Serial.println(F("2. doWifiStuff()"));
 	if (!cc3000.checkConnected())
 	{
-		Serial.println("3. doWifiStuff()");
+		Serial.println(F("3. doWifiStuff()"));
 		//cc3000.disconnect();
-		Serial.println("4. doWifiStuff()");
+		Serial.println(F("4. doWifiStuff()"));
+		Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
 		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
 
@@ -417,7 +418,7 @@ void doWifiStuff()
 	Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
 	*/
 
-	digitalWrite(13, LOW);
+	//digitalWrite(13, LOW);
 }
 
 
@@ -427,7 +428,7 @@ void checkBuzzerStatus()
 	{
 		turn_buzzer_on = false;
 		turn_buzzer_on_timestamp = millis();
-		if(usingMega) Serial.println("Setting buzzer timestamp");
+		//if(usingMega) Serial.println("Setting buzzer timestamp");
 	}
 
 	if (turn_buzzer_on_timestamp > 0 && millis() - turn_buzzer_on_timestamp  < 3000)
