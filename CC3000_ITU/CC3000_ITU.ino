@@ -6,6 +6,7 @@
 #include "utility/debug.h"
 #include<stdlib.h>
 #include <Adafruit_NeoPixel.h>
+#include "utility/netapp.h"
 
 
 #define DEVICE_ID "1111"
@@ -25,12 +26,12 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 #define WLAN_SSID       "pitlab-local"
 #define WLAN_PASS       "none123456s"
 
+#define WLAN_SSID       "smartportal"
+#define WLAN_PASS       "smartportal"
 
 #define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
 #define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
 
-#define WLAN_SSID       "smartportal"
-#define WLAN_PASS       "smartportal"
 
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY   WLAN_SEC_WPA2
@@ -40,7 +41,7 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 // received before closing the connection.  If you know the server
 // you're accessing is quick to respond, you can reduce this value.
 
-uint32_t ip;
+uint32_t ip = cc3000.IP2U32(91,100,105,227);
 
 #define USE_SERIAL 1 // disables all serial output besides response data
 
@@ -52,16 +53,35 @@ unsigned long successes = 0;
 #define PING 5
 //#define PINB 6
 #define PINBUZZER 8
-
-
-
-#define PIN 6
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(3, PIN, NEO_GRB + NEO_KHZ800);
+#define PIN_NEOPIXEL 6
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(3, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 int rgb[] = {0, 0, 0};
 bool usingMega = 1;
+unsigned long dhcpTimeout = 5000;
+unsigned long t;
+
+bool turn_buzzer_on = false;
+unsigned long turn_buzzer_on_timestamp = 0;
+
+bool turn_blinking_on = false;
+bool turn_blinking_on_last = false;
+
+
 
 void setup(void)
 {
+	pinMode(13, OUTPUT);
+
+	// initialize timer1 
+	noInterrupts();           // disable all interrupts
+	TCCR1A = 0;
+	TCCR1B = 0;
+
+	TCNT1 = 34286;            // preload timer 65536-16MHz/256/2Hz
+	TCCR1B |= (1 << CS12);    // 256 prescaler 
+	TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
+	interrupts();             // enable all interrupts
+
 	strip.begin();
 	strip.show(); // Initialize all pixels to 'off'
 
@@ -89,7 +109,7 @@ void setup(void)
 		while(1);
 	}
 
-	ip = cc3000.IP2U32(192,168,0,67);
+	
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -100,9 +120,39 @@ void setup(void)
 
 	colorWipe(strip.Color(255, 255, 255), 0); // off
 	//strip.show(); // Initialize all pixels to 'off'
+	unsigned long aucDHCP = 14400;
+	unsigned long aucARP = 3600;
+	unsigned long aucKeepalive = 10;
+	unsigned long aucInactivity = 20;
+	if (netapp_timeout_values(&aucDHCP, &aucARP, &aucKeepalive, &aucInactivity) != 0) {
+		Serial.println("Error setting inactivity timeout!");
+	}
 }
+
+
+
+ISR(TIMER1_OVF_vect)        // interrupt service routine that wraps a user defined function supplied by attachInterrupt
+{
+	TCNT1 = 34286;            // preload timer
+	// Check for blinking stuff
+	if (turn_blinking_on)
+	{
+		turn_blinking_on_last = !turn_blinking_on_last;
+
+		if (turn_blinking_on_last) {
+			colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
+		}
+		else {
+			colorWipe(strip.Color(0, 0, 0), 0);
+		}
+	}
+	else {
+		colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
+	}
+}
+
 //http://events2.vsshs.com/api/Test/TestMethod
-#define WEBSITE      "192.168.0.67"
+#define WEBSITE  "umbraco.vsshs.com"//    "192.168.0.67"
 #define WEBPAGE "/api/Patient/checkpatient"
 
 char fail_count;
@@ -119,7 +169,7 @@ unsigned long last_tag_detected = 999999;
 
 void loop(void)
 {
-	if(usingMega) Serial.println("LOOP...");
+	//if(usingMega) Serial.println("LOOP...");
 
 
 	doRFIDNonMega();
@@ -128,17 +178,10 @@ void loop(void)
 
 	checkBuzzerStatus();
 
-	checkBlinking();
+	//checkBlinking();
 }
 
-unsigned long dhcpTimeout = 5000;
-unsigned long t;
 
-bool turn_buzzer_on = false;
-unsigned long turn_buzzer_on_timestamp = 0;
-
-bool turn_blinking_on = false;
-bool turn_blinking_on_last = false;
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
 	for(uint16_t i=0; i<strip.numPixels(); i++) {
@@ -151,40 +194,23 @@ void colorWipe(uint32_t c, uint8_t wait) {
 
 void checkBlinking()
 {
-	Serial.println("check blinking");
-
-
-
-	if (turn_blinking_on)
-	{
-		turn_blinking_on_last = !turn_blinking_on_last;
-
-		if (turn_blinking_on_last)
-		{
-			if (usingMega)
-				Serial.println("on");
-			colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
-		}
-		else
-		{
-			if (usingMega)
-				Serial.println("off");
-			colorWipe(strip.Color(0, 0, 0), 0);
-		}
-
-	}
-	else
-	{
-		colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
-	}
+	
 }
 
+char stop = 0;
 
-
+unsigned long lastRequest = millis();
+unsigned long lastRequest_now = millis();
 void doWifiStuff()
 {
-	
-	
+	lastRequest_now = millis();
+
+	if (lastRequest_now - lastRequest < 666)
+	{
+		return;
+	}
+
+	lastRequest = lastRequest_now;
 	// Connect to WiFi network
 	if (!cc3000.checkConnected())
 	{
@@ -214,10 +240,11 @@ void doWifiStuff()
 
 	if (ip != 0)
 	{
-		if(usingMega) cc3000.printIPdotsRev(ip);
+		//if(usingMega) cc3000.printIPdotsRev(ip);
 
 		// Send request
 		Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
+
 		if (client.connected()) {
 
 			if(usingMega) Serial.println("Connected!");
@@ -249,22 +276,29 @@ void doWifiStuff()
 		/* Read data until either the connection is closed, or the idle timeout is reached. */
 		unsigned long lastRead = millis();
 		boolean jsonStarted=false;
+		bool stop = false;
 		//int rgb[] = {0, 0, 0};
 
-		while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS)) 
+		while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS) && stop == 0) 
 		{
 			int currentValue = 0;
 			int currentPosition = 0;
 
-			while (client.available()) 
+			while (client.available()&& (millis() - lastRead < IDLE_TIMEOUT_MS)&& stop == 0) 
 			{
 				char c = client.read();
-				//if(USE_SERIAL) Serial.print(c);
+				lastRead = millis();
+				//Serial.print(c);
+
+				//jsonStarted = false;
 
 				if (jsonStarted)
 				{
 					if (c == '"')
+					{
+						stop=1;
 						break;
+					}
 					//if(usingMega) Serial.println(c);
 					if (c != '/')
 					{
@@ -328,7 +362,7 @@ void doWifiStuff()
 
 		}
 		client.close();
-
+		
 		//analogWrite(PINR, rgb[0]);
 		//analogWrite(PING, rgb[1]);
 		//analogWrite(PINB, rgb[2]);
@@ -345,7 +379,8 @@ void doWifiStuff()
 
 
 	fail_count = 0;
-
+	Serial.println(successes);
+	  //Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
 }
 
 
@@ -368,8 +403,20 @@ void checkBuzzerStatus()
 		digitalWrite(PINBUZZER, LOW);
 	}
 }
+
+unsigned long lastrfid = millis();
+unsigned long lastrfid_now = millis();
+
 void doRFIDNonMega()
 {
+	lastrfid_now = millis();
+
+	if (lastrfid_now - lastrfid < 150)
+	{
+		return;
+	}
+
+	lastrfid = lastrfid_now;
 	if (Serial1.available() > 0)
 	{
 
