@@ -93,10 +93,10 @@ void setup(void)
 
 	// Initialize
 
-	
-		
-	
-	
+
+
+
+
 
 #ifndef DO_PRINTING
 	cc3000.setPrinter(0); // if no mega - no printing from wifi module...
@@ -167,7 +167,7 @@ ISR(TIMER1_OVF_vect)        // interrupt service routine that wraps a user defin
 			rgb_old[1] = rgb[1];
 			rgb_old[2] = rgb[2];
 			colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
-			
+
 		}
 	}
 }
@@ -225,7 +225,7 @@ void doWifiStuff()
 	lastRequest_now = millis();
 
 	if (lastRequest_now - lastRequest < 666) 
-		{ return; }
+	{ return; }
 	digitalWrite(13, HIGH);
 	lastRequest = lastRequest_now;
 	// Connect to WiFi network
@@ -263,138 +263,138 @@ void doWifiStuff()
 		return;
 	}
 
-	if (ip != 0)
+	//if(usingMega) cc3000.printIPdotsRev(ip);
+
+
+	if (!cc3000.checkConnected())
 	{
-		//if(usingMega) cc3000.printIPdotsRev(ip);
-
-
-		if (!cc3000.checkConnected())
-		{
-			cc3000.disconnect();
-			cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
-		}
-		// Send request
-		Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
-
-		if (client.connected()) {
-
-			//if(usingMega) Serial.println("Connected!");
-
-			client.fastrprint(F("GET "));
-			client.fastrprint(WEBPAGE);
-			client.fastrprint(F("?tagId="));
-			char* tag = getTagNumber();
-			client.fastrprint(tag);
-			client.fastrprint(F("&deviceAuth="));
-			client.fastrprint(DEVICE_ID);
-			//client.fastrprint(F("&lastUpdated="));
-			client.fastrprint(F(" HTTP/1.1\r\n"));
-			client.fastrprint(F("Host: ")); 
-			client.fastrprint(WEBSITE); 
-			client.fastrprint(F("\r\nAccept: application/json"));
-			client.fastrprint(F("\r\n"));
-			client.fastrprint(F("\r\n"));
-			client.println();
-		} 
-		else 
-		{
-
-#ifdef DO_PRINTING
-			if(usingMega) Serial.println(F("Connection failed"));    
-#endif
-			return;
-		}
-
-		//if(usingMega) Serial.println(F("-------------------------------------"));
-
-		/* Read data until either the connection is closed, or the idle timeout is reached. */
-		unsigned long lastRead = millis();
-		boolean jsonStarted=false;
-		bool stop = false;
-		//int rgb[] = {0, 0, 0};
-
-		while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS) && stop == 0) 
-		{
-			int currentValue = 0;
-			int currentPosition = 0;
-
-			while (client.available()&& (millis() - lastRead < IDLE_TIMEOUT_MS)&& stop == 0) 
-			{
-				c = client.read();
-				lastRead = millis();
-				//Serial.print(c);
-				//jsonStarted = false;
-
-				if (jsonStarted)
-				{
-					if (c == '"')
-					{
-						stop=1;
-						break;
-					}
-					//if(usingMega) Serial.println(c);
-					if (c != '/')
-					{
-						currentValue = currentValue * 10 + c - '0';
-					}
-					else
-					{
-						//if(usingMega) Serial.print ("Current value: ");
-						//if(usingMega) Serial.println(currentValue);
-						// LED status
-						if (currentPosition < 3)
-						{
-							rgb[currentPosition]  = currentValue;
-						}
-
-						// buzzer
-						if (currentPosition == 3)
-						{
-#ifdef DO_PRINTING
-							Serial.print ("R"); Serial.print (rgb[0]);
-							Serial.print (" G");Serial.print (rgb[1]);
-							Serial.print (" B");Serial.println (rgb[2]);
-
-							if(usingMega) Serial.print ("buzzer: ");
-							if(usingMega) Serial.println(currentValue);
-#endif
-							if (currentValue > 0)
-							{
-								turn_buzzer_on = true;
-							}
-						}
-						if (currentPosition == 4)
-						{
-#ifdef DO_PRINTING
-							Serial.print ("blink: ");
-							Serial.println(currentValue);
-#endif
-							if (currentValue > 0)
-							{
-								turn_blinking_on = true;
-							}
-							else
-							{
-								turn_blinking_on = false;
-							}
-						}
-
-						currentPosition ++;
-						currentValue = 0;
-					}
-				}
-
-				// skip all of the header crap...
-				if (c=='"' && !jsonStarted)
-				{
-					jsonStarted = true;
-					successes++;
-				}
-
-			}
-		}
-		client.close();
+		cc3000.disconnect();
+		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
+
+	
+	// Send request
+	Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
+
+	if (client.connected()) {
+
+		//if(usingMega) Serial.println("Connected!");
+
+		client.fastrprint(F("GET "));
+		client.fastrprint(WEBPAGE);
+		client.fastrprint(F("?tagId="));
+		char* tag = getTagNumber();
+		client.fastrprint(tag);
+		client.fastrprint(F("&deviceAuth="));
+		client.fastrprint(DEVICE_ID);
+		//client.fastrprint(F("&lastUpdated="));
+		client.fastrprint(F(" HTTP/1.1\r\n"));
+		client.fastrprint(F("Host: ")); 
+		client.fastrprint(WEBSITE); 
+		client.fastrprint(F("\r\nAccept: application/json"));
+		client.fastrprint(F("\r\n"));
+		client.fastrprint(F("\r\n"));
+		client.println();
+	} 
+	else 
+	{
+
+#ifdef DO_PRINTING
+		if(usingMega) Serial.println(F("Connection failed"));    
+#endif
+		return;
+	}
+
+	//if(usingMega) Serial.println(F("-------------------------------------"));
+
+	/* Read data until either the connection is closed, or the idle timeout is reached. */
+	unsigned long lastRead = millis();
+	boolean jsonStarted=false;
+	bool stop = false;
+	//int rgb[] = {0, 0, 0};
+	
+	while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS) && stop == 0) 
+	{
+		int currentValue = 0;
+		int currentPosition = 0;
+
+		while (client.available()&& (millis() - lastRead < IDLE_TIMEOUT_MS)&& stop == 0) 
+		{
+			c = client.read();
+			lastRead = millis();
+			//Serial.print(c);
+			//jsonStarted = false;
+
+			if (jsonStarted)
+			{
+				if (c == '"')
+				{
+					stop=1;
+					break;
+				}
+				//if(usingMega) Serial.println(c);
+				if (c != '/')
+				{
+					currentValue = currentValue * 10 + c - '0';
+				}
+				else
+				{
+					//if(usingMega) Serial.print ("Current value: ");
+					//if(usingMega) Serial.println(currentValue);
+					// LED status
+					if (currentPosition < 3)
+					{
+						rgb[currentPosition]  = currentValue;
+					}
+
+					// buzzer
+					if (currentPosition == 3)
+					{
+#ifdef DO_PRINTING
+						Serial.print ("R"); Serial.print (rgb[0]);
+						Serial.print (" G");Serial.print (rgb[1]);
+						Serial.print (" B");Serial.println (rgb[2]);
+
+						if(usingMega) Serial.print ("buzzer: ");
+						if(usingMega) Serial.println(currentValue);
+#endif
+						if (currentValue > 0)
+						{
+							turn_buzzer_on = true;
+						}
+					}
+					if (currentPosition == 4)
+					{
+#ifdef DO_PRINTING
+						Serial.print ("blink: ");
+						Serial.println(currentValue);
+#endif
+						if (currentValue > 0)
+						{
+							turn_blinking_on = true;
+						}
+						else
+						{
+							turn_blinking_on = false;
+						}
+					}
+
+					currentPosition ++;
+					currentValue = 0;
+				}
+			}
+
+			// skip all of the header crap...
+			if (c=='"' && !jsonStarted)
+			{
+				jsonStarted = true;
+				successes++;
+			}
+
+		}
+	}
+	client.close();
+	
 	fail_count = 0;
 
 #ifdef DO_PRINTING
