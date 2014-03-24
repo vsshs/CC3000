@@ -10,7 +10,7 @@
 //#include <avr/wdt.h>
 
 
-#define DEVICE_ID "1111"
+#define DEVICE_ID "1112"
 // Define CC3000 chip pins
 #define ADAFRUIT_CC3000_IRQ   2
 #define ADAFRUIT_CC3000_VBAT  7
@@ -103,7 +103,7 @@ void setup(void)
 
 
 #ifndef DO_PRINTING
-	//cc3000.setPrinter(0); // if no mega - no printing from wifi module...
+	cc3000.setPrinter(0); // if no mega - no printing from wifi module...
 	Serial.begin(9600); // use serial for rfid stuff
 #else
 	Serial.begin(115200);
@@ -202,7 +202,7 @@ void loop(void)
 
 	doWifiStuff();
 
-	//checkBuzzerStatus();
+	checkBuzzerStatus();
 
 	
 }
@@ -453,6 +453,7 @@ void doRFIDNonMega()
 	{
 		return;
 	}
+	/////Serial.println("Checking rfid");
 
 	lastrfid = lastrfid_now;
 	if (rfidSerial.available() > 0)
@@ -499,7 +500,7 @@ void doRFIDNonMega()
 				} 
 
 
-				if(usingMega) Serial.println(myTag);
+				// Serial.println(myTag);
 				// empty the rest of the buffer
 				while(rfidSerial.available()) { rfidSerial.read(); }
 			}
