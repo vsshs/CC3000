@@ -7,7 +7,7 @@
 #include<stdlib.h>
 #include <Adafruit_NeoPixel.h>
 #include "utility/netapp.h"
-#include <avr/wdt.h>
+//#include <avr/wdt.h>
 
 
 #define DEVICE_ID "1111"
@@ -33,7 +33,10 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 #define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
 #define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
 
+#define WLAN_SSID       "smartportal"
+#define WLAN_PASS       "smartportal"
 
+//#define WLAN_SSID       "pitlab-local"
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
 #define WLAN_SECURITY   WLAN_SEC_WPA2
 
@@ -42,7 +45,7 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 // received before closing the connection.  If you know the server
 // you're accessing is quick to respond, you can reduce this value.
 
-uint32_t ip = cc3000.IP2U32(91,100,105,227);
+uint32_t ip = cc3000.IP2U32(192,168,0,67);
 
 #define USE_SERIAL 1 // disables all serial output besides response data
 
@@ -53,8 +56,8 @@ unsigned long successes = 0;
 ///#define PINR 3
 #define PING 5
 //#define PINB 6
-#define PINBUZZER 8
-#define PIN_NEOPIXEL 6
+#define PINBUZZER 10
+#define PIN_NEOPIXEL 8
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(3, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 volatile int rgb[] = {0, 0, 0};
 volatile int rgb_old[] = {0, 0, 0};
@@ -68,12 +71,13 @@ unsigned long turn_buzzer_on_timestamp = 0;
 volatile bool turn_blinking_on = false;
 volatile bool turn_blinking_on_last = false;
 
-#define DO_PRINTING
+//#define DO_PRINTING
 
 void setup(void)
 {
 	pinMode(13, OUTPUT);
 
+	
 	// initialize timer1 
 	noInterrupts();           // disable all interrupts
 	TCCR1A = 0;
@@ -83,7 +87,7 @@ void setup(void)
 	TCCR1B |= (1 << CS12);    // 256 prescaler 
 	TIMSK1 |= (1 << TOIE1);   // enable timer overflow interrupt
 	interrupts();             // enable all interrupts
-
+	
 	strip.begin();
 	strip.show(); // Initialize all pixels to 'off'
 
@@ -99,7 +103,7 @@ void setup(void)
 
 
 #ifndef DO_PRINTING
-	cc3000.setPrinter(0); // if no mega - no printing from wifi module...
+	//cc3000.setPrinter(0); // if no mega - no printing from wifi module...
 	Serial.begin(9600); // use serial for rfid stuff
 #else
 	Serial.begin(115200);
@@ -123,7 +127,8 @@ void setup(void)
 		colorWipe(strip.Color(0, 0, 255), 50); // Blue
 	}
 
-	colorWipe(strip.Color(255, 255, 255), 0); // off
+	colorWipe(strip.Color(0, 0, 0), 0); // off
+	
 	//strip.show(); // Initialize all pixels to 'off'
 	unsigned long aucDHCP = 14400;
 	unsigned long aucARP = 3600;
@@ -135,7 +140,7 @@ void setup(void)
 #endif
 	}
 
-	wdt_disable();
+	//wdt_disable();
 }
 
 
@@ -173,7 +178,7 @@ ISR(TIMER1_OVF_vect)        // interrupt service routine that wraps a user defin
 }
 
 //http://events2.vsshs.com/api/Test/TestMethod
-#define WEBSITE  "umbraco.vsshs.com"//    "192.168.0.67"
+#define WEBSITE  "192.168.0.67"//    "192.168.0.67"
 #define WEBPAGE "/api/Patient/checkpatient"
 
 char fail_count;
@@ -190,16 +195,19 @@ unsigned long last_tag_detected = 999999;
 
 void loop(void)
 {
-	//if(usingMega) Serial.println("LOOP...");
+
+
+	Serial.println("LOOP...");
+	delay(1000);
 	//wdt_reset();
 
 	doRFIDNonMega();
 
 	doWifiStuff();
 
-	checkBuzzerStatus();
+	//checkBuzzerStatus();
 
-	//checkBlinking();
+	
 }
 
 unsigned char loop_colorWipeVar;
@@ -222,6 +230,7 @@ char c;
 
 void doWifiStuff()
 {
+	Serial.println("1 doWifiStuff()");
 	lastRequest_now = millis();
 
 	if (lastRequest_now - lastRequest < 666) 
@@ -229,19 +238,22 @@ void doWifiStuff()
 	digitalWrite(13, HIGH);
 	lastRequest = lastRequest_now;
 	// Connect to WiFi network
+	Serial.println("2. doWifiStuff()");
 	if (!cc3000.checkConnected())
 	{
-		cc3000.disconnect();
+		Serial.println("3. doWifiStuff()");
+		//cc3000.disconnect();
+		Serial.println("4. doWifiStuff()");
 		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
 
+	Serial.println("5. doWifiStuff()");
 
 
-
-#ifdef DO_PRINTING
+//#ifdef DO_PRINTING
 	Serial.println(F("Connected to AP!"));
 	Serial.println(F("Request DHCP"));
-#endif
+//#endif
 	fail_count=0;
 
 
@@ -249,13 +261,14 @@ void doWifiStuff()
 	for(t=millis(); !cc3000.checkDHCP() && ((millis() - t) < dhcpTimeout); delay(1000));
 	if(cc3000.checkDHCP()) 
 	{
+		Serial.println(F("OK")); //********
 #ifdef DO_PRINTING
 		Serial.println(F("OK"));
 #endif
 	} 
 	else 
 	{
-
+		Serial.println(F("failed"));//********
 #ifdef DO_PRINTING
 		Serial.println(F("failed"));
 #endif
@@ -322,7 +335,7 @@ void doWifiStuff()
 		{
 			c = client.read();
 			lastRead = millis();
-			//Serial.print(c);
+			Serial.print(c);
 			//jsonStarted = false;
 
 			if (jsonStarted)
@@ -431,6 +444,12 @@ void checkBuzzerStatus()
 unsigned long lastrfid = millis();
 unsigned long lastrfid_now = millis();
 unsigned char loop_doRFIDNonMega, loop_doRFIDNonMega2;
+
+#ifdef DO_PRINTING
+HardwareSerial rfidSerial = Serial1;
+#else
+HardwareSerial rfidSerial = Serial;
+#endif
 void doRFIDNonMega()
 {
 	lastrfid_now = millis();
@@ -441,21 +460,21 @@ void doRFIDNonMega()
 	}
 
 	lastrfid = lastrfid_now;
-	if (Serial1.available() > 0)
+	if (rfidSerial.available() > 0)
 	{
 
-		while(Serial1.available() && Serial1.read() != 0x02)
+		while(rfidSerial.available() && rfidSerial.read() != 0x02)
 		{
-			Serial1.read();
+			rfidSerial.read();
 		}
 
-		if (Serial1.available() >= 13)
+		if (rfidSerial.available() >= 13)
 		{
 			data[0] = 0x02;
 			counter = 1;
 			for (loop_doRFIDNonMega = 0; loop_doRFIDNonMega < 14; loop_doRFIDNonMega++)
 			{
-				data[counter] = Serial1.read();
+				data[counter] = rfidSerial.read();
 				counter++;
 			}
 			if(data[0] == 0x02 && data[13] == 0x03)
@@ -487,13 +506,13 @@ void doRFIDNonMega()
 
 				if(usingMega) Serial.println(myTag);
 				// empty the rest of the buffer
-				while(Serial1.available()) { Serial1.read(); }
+				while(rfidSerial.available()) { rfidSerial.read(); }
 			}
 		}
 		else
 		{
 			// empty the rest of the buffer
-			while(Serial1.available()) { Serial1.read(); }
+			while(rfidSerial.available()) { rfidSerial.read(); }
 		}
 
 	}
