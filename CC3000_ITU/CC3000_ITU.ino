@@ -7,6 +7,7 @@
 #include<stdlib.h>
 #include <Adafruit_NeoPixel.h>
 #include "utility/netapp.h"
+#include <avr/wdt.h>
 
 
 #define DEVICE_ID "1111"
@@ -55,7 +56,8 @@ unsigned long successes = 0;
 #define PINBUZZER 8
 #define PIN_NEOPIXEL 6
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(3, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
-int rgb[] = {0, 0, 0};
+volatile int rgb[] = {0, 0, 0};
+volatile int rgb_old[] = {0, 0, 0};
 bool usingMega = 1;
 unsigned long dhcpTimeout = 5000;
 unsigned long t;
@@ -63,10 +65,10 @@ unsigned long t;
 bool turn_buzzer_on = false;
 unsigned long turn_buzzer_on_timestamp = 0;
 
-bool turn_blinking_on = false;
-bool turn_blinking_on_last = false;
+volatile bool turn_blinking_on = false;
+volatile bool turn_blinking_on_last = false;
 
-
+#define DO_PRINTING
 
 void setup(void)
 {
@@ -91,25 +93,28 @@ void setup(void)
 
 	// Initialize
 
-	if (usingMega)
-	{
-		Serial.begin(115200);
-		Serial1.begin(9600);
-	}
-	else
-	{
-		Serial.begin(9600);
-	}
-	if (usingMega) Serial.println(F("\nInitializing..."));
-	if(!usingMega) cc3000.setPrinter(0); // if no mega - no printing from wifi module...
+	
+		
+	
+	
+
+#ifndef DO_PRINTING
+	cc3000.setPrinter(0); // if no mega - no printing from wifi module...
+	Serial.begin(9600); // use serial for rfid stuff
+#else
+	Serial.begin(115200);
+	Serial1.begin(9600);
+#endif
 
 	if (!cc3000.begin())
 	{
-		if(usingMega) Serial.println(F("Couldn't begin()! Check your wiring?"));
+#ifdef DO_PRINTING
+		Serial.println(F("Couldn't begin()! Check your wiring?"));
+#endif
 		while(1);
 	}
 
-	
+
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -125,8 +130,12 @@ void setup(void)
 	unsigned long aucKeepalive = 10;
 	unsigned long aucInactivity = 20;
 	if (netapp_timeout_values(&aucDHCP, &aucARP, &aucKeepalive, &aucInactivity) != 0) {
+#ifdef DO_PRINTING
 		Serial.println("Error setting inactivity timeout!");
+#endif
 	}
+
+	wdt_disable();
 }
 
 
@@ -147,7 +156,19 @@ ISR(TIMER1_OVF_vect)        // interrupt service routine that wraps a user defin
 		}
 	}
 	else {
-		colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
+		if (!turn_blinking_on_last)
+		{
+			turn_blinking_on_last = true;
+			colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
+		}
+		if (rgb_old[0] != rgb[0] || rgb_old[1] != rgb[1] || rgb_old[2] != rgb[2])
+		{
+			rgb_old[0] = rgb[0]; 
+			rgb_old[1] = rgb[1];
+			rgb_old[2] = rgb[2];
+			colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
+			
+		}
 	}
 }
 
@@ -170,7 +191,7 @@ unsigned long last_tag_detected = 999999;
 void loop(void)
 {
 	//if(usingMega) Serial.println("LOOP...");
-
+	//wdt_reset();
 
 	doRFIDNonMega();
 
@@ -181,35 +202,31 @@ void loop(void)
 	//checkBlinking();
 }
 
+unsigned char loop_colorWipeVar;
 
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
-	for(uint16_t i=0; i<strip.numPixels(); i++) {
-		strip.setPixelColor(i, c);
+	for( loop_colorWipeVar=0; loop_colorWipeVar<strip.numPixels(); loop_colorWipeVar++) {
+		strip.setPixelColor(loop_colorWipeVar, c);
 		strip.show();
 		if (wait > 0)
 			delay(wait);
 	}
 }
 
-void checkBlinking()
-{
-	
-}
-
 char stop = 0;
 
 unsigned long lastRequest = millis();
 unsigned long lastRequest_now = millis();
+char c;
+
 void doWifiStuff()
 {
 	lastRequest_now = millis();
 
-	if (lastRequest_now - lastRequest < 666)
-	{
-		return;
-	}
-
+	if (lastRequest_now - lastRequest < 666) 
+		{ return; }
+	digitalWrite(13, HIGH);
 	lastRequest = lastRequest_now;
 	// Connect to WiFi network
 	if (!cc3000.checkConnected())
@@ -217,23 +234,31 @@ void doWifiStuff()
 		cc3000.disconnect();
 		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
-	if(usingMega) Serial.println(F("Connected!"));
 
 
-	/* Wait for DHCP to complete */
-	if(usingMega) Serial.println(F("Request DHCP"));
+
+
+#ifdef DO_PRINTING
+	Serial.println(F("Connected to AP!"));
+	Serial.println(F("Request DHCP"));
+#endif
 	fail_count=0;
 
 
-
+	/* Wait for DHCP to complete */
 	for(t=millis(); !cc3000.checkDHCP() && ((millis() - t) < dhcpTimeout); delay(1000));
 	if(cc3000.checkDHCP()) 
 	{
-		if(usingMega) Serial.println(F("OK"));
+#ifdef DO_PRINTING
+		Serial.println(F("OK"));
+#endif
 	} 
 	else 
 	{
-		if(usingMega) Serial.println(F("failed"));
+
+#ifdef DO_PRINTING
+		Serial.println(F("failed"));
+#endif
 		cc3000.disconnect();
 		return;
 	}
@@ -242,12 +267,18 @@ void doWifiStuff()
 	{
 		//if(usingMega) cc3000.printIPdotsRev(ip);
 
+
+		if (!cc3000.checkConnected())
+		{
+			cc3000.disconnect();
+			cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
+		}
 		// Send request
 		Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
 
 		if (client.connected()) {
 
-			if(usingMega) Serial.println("Connected!");
+			//if(usingMega) Serial.println("Connected!");
 
 			client.fastrprint(F("GET "));
 			client.fastrprint(WEBPAGE);
@@ -267,11 +298,14 @@ void doWifiStuff()
 		} 
 		else 
 		{
+
+#ifdef DO_PRINTING
 			if(usingMega) Serial.println(F("Connection failed"));    
+#endif
 			return;
 		}
 
-		if(usingMega) Serial.println(F("-------------------------------------"));
+		//if(usingMega) Serial.println(F("-------------------------------------"));
 
 		/* Read data until either the connection is closed, or the idle timeout is reached. */
 		unsigned long lastRead = millis();
@@ -286,10 +320,9 @@ void doWifiStuff()
 
 			while (client.available()&& (millis() - lastRead < IDLE_TIMEOUT_MS)&& stop == 0) 
 			{
-				char c = client.read();
+				c = client.read();
 				lastRead = millis();
 				//Serial.print(c);
-
 				//jsonStarted = false;
 
 				if (jsonStarted)
@@ -311,20 +344,20 @@ void doWifiStuff()
 						// LED status
 						if (currentPosition < 3)
 						{
-
 							rgb[currentPosition]  = currentValue;
 						}
 
 						// buzzer
 						if (currentPosition == 3)
 						{
+#ifdef DO_PRINTING
 							Serial.print ("R"); Serial.print (rgb[0]);
 							Serial.print (" G");Serial.print (rgb[1]);
 							Serial.print (" B");Serial.println (rgb[2]);
 
 							if(usingMega) Serial.print ("buzzer: ");
 							if(usingMega) Serial.println(currentValue);
-
+#endif
 							if (currentValue > 0)
 							{
 								turn_buzzer_on = true;
@@ -332,8 +365,10 @@ void doWifiStuff()
 						}
 						if (currentPosition == 4)
 						{
-							if(usingMega) Serial.print ("blink: ");
-							if(usingMega) Serial.println(currentValue);
+#ifdef DO_PRINTING
+							Serial.print ("blink: ");
+							Serial.println(currentValue);
+#endif
 							if (currentValue > 0)
 							{
 								turn_blinking_on = true;
@@ -356,31 +391,20 @@ void doWifiStuff()
 					successes++;
 				}
 
-
 			}
-
-
 		}
 		client.close();
-		
-		//analogWrite(PINR, rgb[0]);
-		//analogWrite(PING, rgb[1]);
-		//analogWrite(PINB, rgb[2]);
-
-		//colorWipe(strip.Color(rgb[0], rgb[1], rgb[2]), 0);
-
-		if(usingMega) Serial.println(F("\n-------------------------------------"));
-
 	}
-	else
-	{
-		if(usingMega) Serial.println(F("\n\nERROR: Could not resolve IP. "));
-	}
-
-
 	fail_count = 0;
+
+#ifdef DO_PRINTING
 	Serial.println(successes);
-	  //Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
+#endif
+	/*
+	Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
+	*/
+
+	digitalWrite(13, LOW);
 }
 
 
@@ -393,7 +417,7 @@ void checkBuzzerStatus()
 		if(usingMega) Serial.println("Setting buzzer timestamp");
 	}
 
-	if (turn_buzzer_on_timestamp > 0 && millis() - turn_buzzer_on_timestamp  < 15000)
+	if (turn_buzzer_on_timestamp > 0 && millis() - turn_buzzer_on_timestamp  < 3000)
 	{
 		digitalWrite(PINBUZZER, HIGH);
 	}
@@ -406,7 +430,7 @@ void checkBuzzerStatus()
 
 unsigned long lastrfid = millis();
 unsigned long lastrfid_now = millis();
-
+unsigned char loop_doRFIDNonMega, loop_doRFIDNonMega2;
 void doRFIDNonMega()
 {
 	lastrfid_now = millis();
@@ -429,7 +453,7 @@ void doRFIDNonMega()
 		{
 			data[0] = 0x02;
 			counter = 1;
-			for (int i = 0; i < 14; i++)
+			for (loop_doRFIDNonMega = 0; loop_doRFIDNonMega < 14; loop_doRFIDNonMega++)
 			{
 				data[counter] = Serial1.read();
 				counter++;
@@ -450,10 +474,10 @@ void doRFIDNonMega()
 
 				if ( hexCalculatedChecksum == hexChecksum )
 				{
-					for (int i = 0; i < 8; i++)
+					for (loop_doRFIDNonMega2 = 0; loop_doRFIDNonMega2 < 8; loop_doRFIDNonMega2++)
 					{
-						char a = (char)data[i+3];
-						myTag[i] = a;
+
+						myTag[loop_doRFIDNonMega2] = data[loop_doRFIDNonMega2+3];
 						//Serial.print(a);
 					}
 					myTag[8]= 0x00;
