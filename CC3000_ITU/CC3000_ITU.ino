@@ -56,7 +56,7 @@ unsigned long successes = 0;
 ///#define PINR 3
 //#define PING 5
 //#define PINB 6
-#define PINBUZZER 10
+#define PINBUZZER 9
 #define PIN_NEOPIXEL 8
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(3, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 volatile int rgb[] = {0, 0, 0};
@@ -133,7 +133,7 @@ void setup(void)
 	unsigned long aucDHCP = 14400;
 	unsigned long aucARP = 3600;
 	unsigned long aucKeepalive = 10;
-	unsigned long aucInactivity = 20;
+	unsigned long aucInactivity = 40;
 	if (netapp_timeout_values(&aucDHCP, &aucARP, &aucKeepalive, &aucInactivity) != 0) {
 #ifdef DO_PRINTING
 		Serial.println("Error setting inactivity timeout!");
@@ -196,9 +196,6 @@ unsigned long last_tag_detected = 999999;
 void loop(void)
 {
 
-
-	Serial.println("LOOP...");
-	delay(1000);
 	//wdt_reset();
 
 	doRFIDNonMega();
@@ -227,10 +224,12 @@ char stop = 0;
 unsigned long lastRequest = millis();
 unsigned long lastRequest_now = millis();
 char c;
+unsigned long lastRead = millis();
+boolean jsonStarted=false;
 
 void doWifiStuff()
 {
-	Serial.println(F("1 doWifiStuff()"));
+	//Serial.println(F("1 doWifiStuff()"));
 	lastRequest_now = millis();
 
 	if (lastRequest_now - lastRequest < 666) 
@@ -238,23 +237,21 @@ void doWifiStuff()
 	//digitalWrite(13, HIGH);
 	lastRequest = lastRequest_now;
 	// Connect to WiFi network
-	Serial.println(F("2. doWifiStuff()"));
 	if (!cc3000.checkConnected())
 	{
-		Serial.println(F("3. doWifiStuff()"));
+		//Serial.println(F("3. doWifiStuff()"));
 		//cc3000.disconnect();
-		Serial.println(F("4. doWifiStuff()"));
-		Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
+		//Serial.println(F("4. doWifiStuff()"));
+		//Serial.print(F("Free RAM: ")); Serial.println(getFreeRam(), DEC);
 		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
 
-	Serial.println("5. doWifiStuff()");
 
 
-//#ifdef DO_PRINTING
+#ifdef DO_PRINTING
 	Serial.println(F("Connected to AP!"));
 	Serial.println(F("Request DHCP"));
-//#endif
+#endif
 	fail_count=0;
 
 
@@ -262,14 +259,12 @@ void doWifiStuff()
 	for(t=millis(); !cc3000.checkDHCP() && ((millis() - t) < dhcpTimeout); delay(1000));
 	if(cc3000.checkDHCP()) 
 	{
-		Serial.println(F("OK")); //********
 #ifdef DO_PRINTING
 		Serial.println(F("OK"));
 #endif
 	} 
 	else 
 	{
-		Serial.println(F("failed"));//********
 #ifdef DO_PRINTING
 		Serial.println(F("failed"));
 #endif
@@ -286,12 +281,10 @@ void doWifiStuff()
 		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
 
-	
 	// Send request
 	Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
 
 	if (client.connected()) {
-
 		//if(usingMega) Serial.println("Connected!");
 
 		client.fastrprint(F("GET "));
@@ -322,11 +315,13 @@ void doWifiStuff()
 	//if(usingMega) Serial.println(F("-------------------------------------"));
 
 	/* Read data until either the connection is closed, or the idle timeout is reached. */
-	unsigned long lastRead = millis();
-	boolean jsonStarted=false;
-	bool stop = false;
-	//int rgb[] = {0, 0, 0};
 	
+	//bool stop = false;
+	//int rgb[] = {0, 0, 0};
+	 //Serial.println(F("-------------------------------------"));
+	stop = 0;
+	lastRead = millis();
+	jsonStarted = false;
 	while (client.connected() && (millis() - lastRead < IDLE_TIMEOUT_MS) && stop == 0) 
 	{
 		int currentValue = 0;
@@ -336,8 +331,7 @@ void doWifiStuff()
 		{
 			c = client.read();
 			lastRead = millis();
-			Serial.print(c);
-			//jsonStarted = false;
+			//Serial.print(c);
 
 			if (jsonStarted)
 			{
