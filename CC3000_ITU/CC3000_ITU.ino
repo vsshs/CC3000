@@ -433,7 +433,7 @@ void doRFIDNonMega()
 
 char* getTagNumber()
 {
-	if (millis() - last_tag_detected < 15000)
+	if (millis() - last_tag_detected < 1000)
 		return myTag;
 	else
 		return "0";
