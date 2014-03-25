@@ -10,7 +10,7 @@
 //#include <avr/wdt.h>
 
 
-#define DEVICE_ID "1112"
+#define DEVICE_ID "1114"
 // Define CC3000 chip pins
 #define ADAFRUIT_CC3000_IRQ   2
 #define ADAFRUIT_CC3000_VBAT  7
@@ -75,6 +75,7 @@ volatile bool turn_blinking_on_last = false;
 
 void setup(void)
 {
+	//wdt_disable();
 	//pinMode(13, OUTPUT);
 
 	
@@ -281,6 +282,9 @@ void doWifiStuff()
 		cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY);
 	}
 
+	//wdt_enable(WDTO_8S);
+
+	//delay(10000);
 	// Send request
 	Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
 
@@ -405,6 +409,7 @@ void doWifiStuff()
 	
 	fail_count = 0;
 
+	//wdt_disable();
 #ifdef DO_PRINTING
 	Serial.println(successes);
 #endif
