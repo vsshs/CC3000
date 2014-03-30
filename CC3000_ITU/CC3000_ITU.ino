@@ -7,9 +7,9 @@
 #include<stdlib.h>
 #include <Adafruit_NeoPixel.h>
 #include "utility/netapp.h"
-//#include <avr/wdt.h>
+#include <avr/wdt.h>
 
-
+#define HOME
 #define DEVICE_ID "1114"
 // Define CC3000 chip pins
 #define ADAFRUIT_CC3000_IRQ   2
@@ -30,11 +30,11 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 #define WLAN_SSID       "smartportal"
 #define WLAN_PASS       "smartportal"
 
-#define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
-#define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
+#ifdef HOME
+	#define WLAN_SSID       "smdkgljirmksmnbsndblksnlb"
+	#define WLAN_PASS       "72F70&0CFa3AiafVyXp%ZoFIB$eDF3%"
+#endif
 
-#define WLAN_SSID       "smartportal"
-#define WLAN_PASS       "smartportal"
 
 //#define WLAN_SSID       "pitlab-local"
 // Security can be WLAN_SEC_UNSEC, WLAN_SEC_WEP, WLAN_SEC_WPA or WLAN_SEC_WPA2
@@ -45,7 +45,12 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 // received before closing the connection.  If you know the server
 // you're accessing is quick to respond, you can reduce this value.
 
+#ifdef HOME
+uint32_t ip = cc3000.IP2U32(91,100,105,227);
+#else
 uint32_t ip = cc3000.IP2U32(192,168,0,67);
+#endif
+
 
 #define USE_SERIAL 1 // disables all serial output besides response data
 
@@ -71,10 +76,18 @@ unsigned long turn_buzzer_on_timestamp = 0;
 volatile bool turn_blinking_on = false;
 volatile bool turn_blinking_on_last = false;
 
+unsigned long tempCounter = 0;
 //#define DO_PRINTING
-
+uint8_t copyCR;
 void setup(void)
 {
+  copyCR = MCUCR; 
+  MCUSR = 0; 
+	wdt_reset();  
+	wdt_disable();
+Serial.begin(9600); // use serial for rfid stuff
+Serial.println("booting up");
+
 	//wdt_disable();
 	//pinMode(13, OUTPUT);
 
@@ -103,29 +116,24 @@ void setup(void)
 
 
 
-#ifndef DO_PRINTING
 	cc3000.setPrinter(0); // if no mega - no printing from wifi module...
-	Serial.begin(9600); // use serial for rfid stuff
-#else
-	Serial.begin(115200);
-	Serial1.begin(9600);
-#endif
+	
 
+        
 	if (!cc3000.begin())
 	{
-#ifdef DO_PRINTING
 		Serial.println(F("Couldn't begin()! Check your wiring?"));
-#endif
+
 		while(1);
 	}
 
 
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 2; i++)
 	{
-		colorWipe(strip.Color(255, 0, 0), 50); // Red
-		colorWipe(strip.Color(0, 255, 0), 50); // Green
-		colorWipe(strip.Color(0, 0, 255), 50); // Blue
+		colorWipe(strip.Color(255, 0, 0), 25); // Red
+		colorWipe(strip.Color(0, 255, 0), 25); // Green
+		colorWipe(strip.Color(0, 0, 255), 25); // Blue
 	}
 
 	colorWipe(strip.Color(0, 0, 0), 0); // off
@@ -141,6 +149,7 @@ void setup(void)
 #endif
 	}
 
+Serial.println("init complete");
 	//wdt_disable();
 }
 
@@ -178,8 +187,13 @@ ISR(TIMER1_OVF_vect)        // interrupt service routine that wraps a user defin
 	}
 }
 
-//http://events2.vsshs.com/api/Test/TestMethod
+
+#ifdef HOME
+#define WEBSITE  "umbraco.vsshs.com"//    "192.168.0.67"
+#else
 #define WEBSITE  "192.168.0.67"//    "192.168.0.67"
+#endif
+
 #define WEBPAGE "/api/Patient/checkpatient"
 
 char fail_count;
@@ -230,11 +244,16 @@ boolean jsonStarted=false;
 
 void doWifiStuff()
 {
+  
 	//Serial.println(F("1 doWifiStuff()"));
 	lastRequest_now = millis();
 
-	if (lastRequest_now - lastRequest < 666) 
+	if (lastRequest_now - lastRequest < 250) 
 	{ return; }
+
+tempCounter++;
+  if (tempCounter % 250 == 0)
+  Serial.println(tempCounter);
 	//digitalWrite(13, HIGH);
 	lastRequest = lastRequest_now;
 	// Connect to WiFi network
@@ -284,6 +303,9 @@ void doWifiStuff()
 
 	//wdt_enable(WDTO_8S);
 
+	wdt_enable(WDTO_8S);
+
+
 	//delay(10000);
 	// Send request
 	Adafruit_CC3000_Client client = cc3000.connectTCP(ip, 80);
@@ -315,7 +337,7 @@ void doWifiStuff()
 #endif
 		return;
 	}
-
+        wdt_reset();
 	//if(usingMega) Serial.println(F("-------------------------------------"));
 
 	/* Read data until either the connection is closed, or the idle timeout is reached. */
@@ -333,6 +355,7 @@ void doWifiStuff()
 
 		while (client.available()&& (millis() - lastRead < IDLE_TIMEOUT_MS)&& stop == 0) 
 		{
+                        wdt_reset();
 			c = client.read();
 			lastRead = millis();
 			//Serial.print(c);
@@ -413,6 +436,9 @@ void doWifiStuff()
 #ifdef DO_PRINTING
 	Serial.println(successes);
 #endif
+
+	wdt_reset();
+	wdt_disable();
 	/*
 	Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
 	*/
